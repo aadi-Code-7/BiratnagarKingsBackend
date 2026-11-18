@@ -1,0 +1,20 @@
+{
+  "fixtures" : null,
+  "stats" : {
+    "totalRuns" : 3219,
+    "powerPlayRuns" : 877,
+    "totalWickets" : 141,
+    "maidens" : 3,
+    "pacePct" : 69.74,
+    "spinPct" : 30.26,
+    "freeHits" : 9,
+    "dotBalls" : 708,
+    "fours" : 192,
+    "sixes" : 154
+  },
+  "counters" : {
+    "matches" : 23,
+    "runs" : 3219,
+    "wickets" : 141
+  }
+}
