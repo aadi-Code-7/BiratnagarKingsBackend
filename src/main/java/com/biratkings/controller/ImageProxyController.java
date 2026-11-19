@@ -1,5 +1,8 @@
+
 package com.biratkings.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,49 +17,180 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
 
-/**
- * Serves biratkings.com images from OUR origin (and caches them). This removes cross-origin / referrer / hotlink
- * problems on mobile browsers and makes repeat loads instant. Strict allow-list, so it cannot be used as an open proxy.
- */
 @RestController
 public class ImageProxyController {
-    private static final Set<String> TYPES = Set.of("image/png", "image/jpeg", "image/webp", "image/gif", "image/avif");
+
+    private static final Logger log =
+            LoggerFactory.getLogger(ImageProxyController.class);
+
+    private static final Set<String> TYPES = Set.of(
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+            "image/avif"
+    );
+
     private static final int MAX_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_REDIRECTS = 4;
 
     private record Img(byte[] bytes, String type) {}
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(); // never follows redirects
-    private final Map<String, Img> cache = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
-        @Override protected boolean removeEldestEntry(Map.Entry<String, Img> e) { return size() > 200; }
-    });
+    // Redirects are handled manually so every destination can be validated.
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
-    public static boolean allowed(URI u) {
-        String path = u.getPath();
-        return "https".equals(u.getScheme()) && "biratkings.com".equalsIgnoreCase(u.getHost()) && u.getUserInfo() == null && u.getPort() == -1
-            && path != null && !path.contains("..") && (path.startsWith("/assets/") || path.startsWith("/__l5e/"));
+    private final Map<String, Img> cache =
+            Collections.synchronizedMap(
+                    new LinkedHashMap<>(64, 0.75f, true) {
+                        @Override
+                        protected boolean removeEldestEntry(
+                                Map.Entry<String, Img> e) {
+                            return size() > 200;
+                        }
+                    }
+            );
+
+    public static boolean allowed(URI uri) {
+        String path = uri.getPath();
+
+        return "https".equalsIgnoreCase(uri.getScheme())
+                && "biratkings.com".equalsIgnoreCase(uri.getHost())
+                && uri.getUserInfo() == null
+                && uri.getPort() == -1
+                && path != null
+                && !path.contains("..")
+                && (path.startsWith("/assets/")
+                || path.startsWith("/__l5e/"));
     }
 
     @GetMapping("/api/img")
     public ResponseEntity<byte[]> img(@RequestParam("u") String u) {
-        URI uri;
-        try { uri = URI.create(u); } catch (IllegalArgumentException e) { return ResponseEntity.badRequest().build(); }
-        if (!allowed(uri)) return ResponseEntity.badRequest().build();
-        String key = uri.toString();
-        Img img = cache.get(key);
-        if (img == null) {
-            try {
-                HttpResponse<byte[]> r = http.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
-                String type = r.headers().firstValue("content-type").orElse("").split(";")[0].trim().toLowerCase();
-                if (r.statusCode() != 200 || !TYPES.contains(type) || r.body().length > MAX_BYTES) return ResponseEntity.status(502).build();
-                img = new Img(r.body(), type);
-                cache.put(key, img);
-            } catch (Exception e) { return ResponseEntity.status(502).build(); }
+
+        URI original;
+
+        try {
+            original = URI.create(u);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         }
+
+        if (!allowed(original)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String key = original.toString();
+
+        Img cached = cache.get(key);
+
+        if (cached != null) {
+            return imageResponse(cached);
+        }
+
+        try {
+            URI current = original;
+            HttpResponse<byte[]> response = null;
+
+            for (int redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+
+                HttpRequest request = HttpRequest.newBuilder(current)
+                        .timeout(Duration.ofSeconds(8))
+                        .header("User-Agent", "Mozilla/5.0")
+                        .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+                        .GET()
+                        .build();
+
+                response = http.send(
+                        request,
+                        HttpResponse.BodyHandlers.ofByteArray()
+                );
+
+                int status = response.statusCode();
+
+                // Handle redirects manually.
+                if (status == 301 || status == 302 || status == 303
+                        || status == 307 || status == 308) {
+
+                    Optional<String> location =
+                            response.headers().firstValue("location");
+
+                    if (location.isEmpty()) {
+                        log.warn("Image redirect has no Location header: {}",
+                                current.getPath());
+                        return ResponseEntity.status(502).build();
+                    }
+
+                    URI next = current.resolve(location.get());
+
+                    // Never follow a redirect outside the approved host/path.
+                    if (!allowed(next)) {
+                        log.warn("Image redirect rejected: {} -> {}",
+                                current.getHost(), next.getHost());
+                        return ResponseEntity.status(502).build();
+                    }
+
+                    if (redirects == MAX_REDIRECTS) {
+                        log.warn("Too many image redirects: {}", current.getPath());
+                        return ResponseEntity.status(502).build();
+                    }
+
+                    current = next;
+                    continue;
+                }
+
+                if (status != 200) {
+                    log.warn("Image origin returned HTTP {} for {}",
+                            status, current.getPath());
+                    return ResponseEntity.status(502).build();
+                }
+
+                String type = response.headers()
+                        .firstValue("content-type")
+                        .orElse("")
+                        .split(";")[0]
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+
+                byte[] bytes = response.body();
+
+                if (!TYPES.contains(type)) {
+                    log.warn("Unsupported image content type '{}' for {}",
+                            type, current.getPath());
+                    return ResponseEntity.status(502).build();
+                }
+
+                if (bytes.length > MAX_BYTES) {
+                    log.warn("Image exceeds size limit: {}", current.getPath());
+                    return ResponseEntity.status(502).build();
+                }
+
+                Img img = new Img(bytes, type);
+                cache.put(key, img);
+
+                return imageResponse(img);
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Image proxy request interrupted", e);
+        } catch (Exception e) {
+            log.error("Image proxy request failed: {}", e.toString());
+        }
+
+        return ResponseEntity.status(502).build();
+    }
+
+    private ResponseEntity<byte[]> imageResponse(Img img) {
         return ResponseEntity.ok()
-            .cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic().immutable())
-            .header("X-Content-Type-Options", "nosniff")
-            .header("Content-Security-Policy", "default-src 'none'; sandbox")
-            .contentType(MediaType.parseMediaType(img.type()))
-            .body(img.bytes());
+                .cacheControl(
+                        CacheControl.maxAge(Duration.ofDays(7))
+                                .cachePublic()
+                                .immutable()
+                )
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                .contentType(MediaType.parseMediaType(img.type()))
+                .body(img.bytes());
     }
 }
