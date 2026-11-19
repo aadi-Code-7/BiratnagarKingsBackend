@@ -186,66 +186,65 @@ public class ImageProxyController {
 
 
     //Adding a temporary diagnostic endpoint
+
     @GetMapping("/api/diagnostics/image-host")
     public Map<String, Object> diagnoseImageHost() {
 
         Map<String, Object> result = new LinkedHashMap<>();
 
-        // Test DNS resolution from Render
-        try {
-            InetAddress[] addresses =
-                    InetAddress.getAllByName("biratkings.com");
+        // Compare DNS results
+        for (String host : List.of(
+                "biratkings.com",
+                "www.biratkings.com",
+                "example.com"
+        )) {
+            try {
+                List<String> ips = Arrays.stream(
+                        InetAddress.getAllByName(host)
+                ).map(InetAddress::getHostAddress).toList();
 
-            List<String> ips = Arrays.stream(addresses)
-                    .map(InetAddress::getHostAddress)
-                    .toList();
+                result.put(host + "_dns", ips);
 
-            result.put("dns", "SUCCESS");
-            result.put("resolvedAddresses", ips);
-
-        } catch (Exception e) {
-            result.put("dns", "FAILED");
-            result.put("dnsError", e.toString());
+            } catch (Exception e) {
+                result.put(host + "_dns_error", e.toString());
+            }
         }
 
-        // Test HTTPS connection from Render
-        try {
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .followRedirects(HttpClient.Redirect.NEVER)
-                    .build();
+        // Test outbound HTTPS independently
+        for (String url : List.of(
+                "https://example.com/",
+                "https://biratkings.com/assets/sandeep-lamichhane-nobg-DL9DhKuu.png"
+        )) {
+            try {
+                HttpClient client = HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(10))
+                        .followRedirects(HttpClient.Redirect.NEVER)
+                        .build();
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(
-                            "https://biratkings.com/assets/sandeep-lamichhane-nobg-DL9DhKuu.png"
-                    ))
-                    .timeout(Duration.ofSeconds(15))
-                    .header("User-Agent", "Mozilla/5.0")
-                    .GET()
-                    .build();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(15))
+                        .GET()
+                        .build();
 
-            HttpResponse<Void> response = client.send(
-                    request,
-                    HttpResponse.BodyHandlers.discarding()
-            );
+                HttpResponse<Void> response = client.send(
+                        request,
+                        HttpResponse.BodyHandlers.discarding()
+                );
 
-            result.put("https", "CONNECTED");
-            result.put("httpStatus", response.statusCode());
-            result.put("contentType",
-                    response.headers()
-                            .firstValue("content-type")
-                            .orElse("missing"));
-            result.put("redirect",
-                    response.headers()
-                            .firstValue("location")
-                            .orElse("none"));
+                result.put(url.contains("example.com")
+                                ? "example_https" : "image_https",
+                        response.statusCode());
 
-        } catch (Exception e) {
-            result.put("https", "FAILED");
-            result.put("httpsError", e.toString());
+            } catch (Exception e) {
+                result.put(url.contains("example.com")
+                                ? "example_https_error" : "image_https_error",
+                        e.toString());
+            }
         }
 
         return result;
     }
+
 
 }
