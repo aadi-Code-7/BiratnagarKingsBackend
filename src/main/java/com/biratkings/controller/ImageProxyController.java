@@ -24,21 +24,18 @@ public class ImageProxyController {
             LoggerFactory.getLogger(ImageProxyController.class);
 
     private static final Set<String> TYPES = Set.of(
-            "image/png",
-            "image/jpeg",
-            "image/webp",
-            "image/gif",
-            "image/avif"
+            "image/png", "image/jpeg", "image/webp",
+            "image/gif", "image/avif"
     );
 
     private static final int MAX_BYTES = 8 * 1024 * 1024;
-    private static final int MAX_REDIRECTS = 4;
+    private static final int MAX_REDIRECTS = 5;
 
     private record Img(byte[] bytes, String type) {}
 
-    // Redirects are handled manually so every destination can be validated.
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     private final Map<String, Img> cache =
@@ -52,13 +49,13 @@ public class ImageProxyController {
                     }
             );
 
-    public static boolean allowed(URI uri) {
-        String path = uri.getPath();
+    public static boolean allowed(URI u) {
+        String path = u.getPath();
 
-        return "https".equalsIgnoreCase(uri.getScheme())
-                && "biratkings.com".equalsIgnoreCase(uri.getHost())
-                && uri.getUserInfo() == null
-                && uri.getPort() == -1
+        return "https".equalsIgnoreCase(u.getScheme())
+                && "biratkings.com".equalsIgnoreCase(u.getHost())
+                && u.getUserInfo() == null
+                && u.getPort() == -1
                 && path != null
                 && !path.contains("..")
                 && (path.startsWith("/assets/")
@@ -68,19 +65,19 @@ public class ImageProxyController {
     @GetMapping("/api/img")
     public ResponseEntity<byte[]> img(@RequestParam("u") String u) {
 
-        URI original;
+        URI uri;
 
         try {
-            original = URI.create(u);
+            uri = URI.create(u);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
 
-        if (!allowed(original)) {
+        if (!allowed(uri)) {
             return ResponseEntity.badRequest().build();
         }
 
-        String key = original.toString();
+        String key = uri.toString();
 
         Img cached = cache.get(key);
 
@@ -89,49 +86,43 @@ public class ImageProxyController {
         }
 
         try {
-            URI current = original;
-            HttpResponse<byte[]> response = null;
+            URI current = uri;
 
-            for (int redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
+            for (int i = 0; i <= MAX_REDIRECTS; i++) {
 
                 HttpRequest request = HttpRequest.newBuilder(current)
-                        .timeout(Duration.ofSeconds(8))
-                        .header("User-Agent", "Mozilla/5.0")
-                        .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+                        .timeout(Duration.ofSeconds(15))
+                        .header("User-Agent",
+                                "Mozilla/5.0 (compatible; BiratKingsImageProxy/1.0)")
+                        .header("Accept", "image/avif,image/webp,image/png,image/*")
                         .GET()
                         .build();
 
-                response = http.send(
+                HttpResponse<byte[]> response = http.send(
                         request,
                         HttpResponse.BodyHandlers.ofByteArray()
                 );
 
                 int status = response.statusCode();
 
-                // Handle redirects manually.
-                if (status == 301 || status == 302 || status == 303
-                        || status == 307 || status == 308) {
+                // Handle redirects manually and validate every destination.
+                if (status == 301 || status == 302 ||
+                        status == 303 || status == 307 || status == 308) {
 
                     Optional<String> location =
                             response.headers().firstValue("location");
 
-                    if (location.isEmpty()) {
-                        log.warn("Image redirect has no Location header: {}",
-                                current.getPath());
+                    if (location.isEmpty() || i == MAX_REDIRECTS) {
+                        log.warn("Image redirect failed. Status: {}, host: {}",
+                                status, current.getHost());
                         return ResponseEntity.status(502).build();
                     }
 
                     URI next = current.resolve(location.get());
 
-                    // Never follow a redirect outside the approved host/path.
                     if (!allowed(next)) {
-                        log.warn("Image redirect rejected: {} -> {}",
-                                current.getHost(), next.getHost());
-                        return ResponseEntity.status(502).build();
-                    }
-
-                    if (redirects == MAX_REDIRECTS) {
-                        log.warn("Too many image redirects: {}", current.getPath());
+                        log.warn("Image redirect rejected. Destination host: {}",
+                                next.getHost());
                         return ResponseEntity.status(502).build();
                     }
 
@@ -139,43 +130,42 @@ public class ImageProxyController {
                     continue;
                 }
 
-                if (status != 200) {
-                    log.warn("Image origin returned HTTP {} for {}",
-                            status, current.getPath());
-                    return ResponseEntity.status(502).build();
-                }
-
                 String type = response.headers()
                         .firstValue("content-type")
                         .orElse("")
                         .split(";")[0]
                         .trim()
-                        .toLowerCase(Locale.ROOT);
+                        .toLowerCase();
 
-                byte[] bytes = response.body();
+                byte[] body = response.body();
+
+                if (status != 200) {
+                    log.warn("Image server returned HTTP {} for {}",
+                            status, current.getPath());
+                    return ResponseEntity.status(502).build();
+                }
 
                 if (!TYPES.contains(type)) {
-                    log.warn("Unsupported image content type '{}' for {}",
+                    log.warn("Unsupported image content type: {} for {}",
                             type, current.getPath());
                     return ResponseEntity.status(502).build();
                 }
 
-                if (bytes.length > MAX_BYTES) {
-                    log.warn("Image exceeds size limit: {}", current.getPath());
+                if (body.length > MAX_BYTES) {
+                    log.warn("Image exceeds size limit: {} bytes for {}",
+                            body.length, current.getPath());
                     return ResponseEntity.status(502).build();
                 }
 
-                Img img = new Img(bytes, type);
-                cache.put(key, img);
+                Img image = new Img(body, type);
+                cache.put(key, image);
 
-                return imageResponse(img);
+                return imageResponse(image);
             }
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.warn("Image proxy request interrupted", e);
         } catch (Exception e) {
-            log.error("Image proxy request failed: {}", e.toString());
+            log.error("Image proxy request failed: {}",
+                    e.toString(), e);
         }
 
         return ResponseEntity.status(502).build();
@@ -183,13 +173,11 @@ public class ImageProxyController {
 
     private ResponseEntity<byte[]> imageResponse(Img img) {
         return ResponseEntity.ok()
-                .cacheControl(
-                        CacheControl.maxAge(Duration.ofDays(7))
-                                .cachePublic()
-                                .immutable()
-                )
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(7))
+                        .cachePublic().immutable())
                 .header("X-Content-Type-Options", "nosniff")
-                .header("Content-Security-Policy", "default-src 'none'; sandbox")
+                .header("Content-Security-Policy",
+                        "default-src 'none'; sandbox")
                 .contentType(MediaType.parseMediaType(img.type()))
                 .body(img.bytes());
     }
