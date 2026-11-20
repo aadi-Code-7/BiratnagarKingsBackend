@@ -11,9 +11,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** In-memory seed data mirroring biratkings.com. Swap for JPA repositories when you add a database. */
 @Service
 public class DataService {
-    private static final String SITE = "https://biratkings.com";
-    private static final String A = SITE + "/assets/";
-    private static final String L = SITE + "/__l5e/assets-v1/";
+
+//    private static final String SITE = "https://biratkings.com";
+//    private static final String A = SITE + "/assets/";
+//    private static final String L = SITE + "/__l5e/assets-v1/";
+
     private final AtomicInteger orderSeq = new AtomicInteger(1000);
     private final Map<String, OrderResponse> orders = new ConcurrentHashMap<>();
     private final LiveStandingsService live;
@@ -48,32 +50,27 @@ public class DataService {
         // Groups follow ESPNcricinfo roles: Batter · Wicketkeeper · All-rounder · Bowler.
         return List.of(
             p("sandeep-lamichhane", 25, "Sandeep", "Lamichhane", "Sandeep Lamichhane", "Leg-spinner", "Bowler", true, false,
-              A + "sandeep-lamichhane-nobg-DL9DhKuu.png", "2000-08-02", null, "Right-hand bat", "Right-arm leg-break",
+              "/images/players/sandeep-lamichhane.png", "2000-08-02", null, "Right-hand bat", "Right-arm leg-break",
               List.of("Nepal", K, "Delhi Capitals", "Melbourne Renegades"), new Player.Stats(16, 53, 23, 132.50),
               "Nepal's spin wizard and one of the most feared leg-spinners on the global T20 circuit. Across two seasons Sandeep has taken 23 wickets for the Kings at an economy under 6, headlining the middle-overs squeeze.",
               List.of("Captain of the Biratnagar Kings and Nepal's ODI captain", "First Nepali cricketer to play in the IPL (Delhi Capitals, 2018)", "Joint-leading wicket-taker of NPL 2025 with 17 wickets", "Retained by the Kings for NPL 2026")),
-            p("lokesh-bam", 7, "Lokesh", "Bam", "Lokesh Bam", "Wicketkeeper batter", "Wicketkeeper", false, false,
-              A + "lokesh-bam-nobg-CGCWVUyI.png", null, null, "Right-hand bat", null,
+            p("lokesh-bam", 7, "Lokesh", "Bam", "Lokesh Bam", "Wicketkeeper batter", "Wicketkeeper", false, false, "/images/players/lokesh-bam.png", null, null, "Right-hand bat", null,
               List.of("Nepal", K), null,
               "Middle-order batter and wicketkeeper who has been part of the Kings since the inaugural Nepal Premier League in 2024.",
               List.of("Biratnagar Kings squad member since NPL 2024", "Retained by the Kings for NPL 2026")),
-            p("basir-ahmad", 11, "Basir", "Ahmad", "Basir Ahamad", "Batting all-rounder", "All-rounder", false, false,
-              A + "basir-ahmad-nobg-DyRY3aw0.png", null, null, "Left-hand bat", "Slow left-arm orthodox",
+            p("basir-ahmad", 11, "Basir", "Ahmad", "Basir Ahamad", "Batting all-rounder", "All-rounder", false, false, "/images/players/basir-ahmad.png", null, null, "Left-hand bat", "Slow left-arm orthodox",
               List.of("Nepal", K), null,
               "Left-handed all-rounder who bowls slow left-arm orthodox, adding balance and control through the middle overs.",
               List.of("Biratnagar Kings squad member since NPL 2024", "Retained by the Kings for NPL 2026")),
-            p("pratish-gc", 44, "Pratish", "GC", "Pratish GC", "Medium-pace bowler", "Bowler", false, false,
-              A + "pratish-gc-nobg-DzvlCQOh.png", null, null, "Right-hand bat", "Left-arm medium",
+            p("pratish-gc", 44, "Pratish", "GC", "Pratish GC", "Medium-pace bowler", "Bowler", false, false, "/images/players/pratish-gc.png", null, null, "Right-hand bat", "Left-arm medium",
               List.of("Nepal", K), null,
               "Left-arm seamer who gives the Kings the domestic pace option, and a useful lower-order hitter.",
               List.of("Took 3/27 in the NPL 2025 Qualifier 2 against Lumbini Lions", "Retained by the Kings for NPL 2026")),
-            p("subash-bhandari", 33, "Subash", "Bhandari", "Subash Bhandari", "Off-spinner", "Bowler", false, false,
-              A + "subash-bhandari-nobg-C51pnMvS.png", "2004-12-05", "Kathekhola, Baglung, Nepal", "Right-hand bat", "Right-arm off-break",
+            p("subash-bhandari", 33, "Subash", "Bhandari", "Subash Bhandari", "Off-spinner", "Bowler", false, false, "/images/players/subash-bhandari.png", "2004-12-05", "Kathekhola, Baglung, Nepal", "Right-hand bat", "Right-arm off-break",
               List.of("Nepal", K, "Gandaki Province", "Nepal Under-19s"), null,
               "Young off-spinner from Baglung who came through Gandaki Province and Nepal's Under-19 side, and has been a regular in the Kings attack.",
               List.of("Took 3/14 in the NPL 2025 Qualifier 2 against Lumbini Lions", "Played for Nepal at the 2024 Under-19 World Cup", "Retained by the Kings for NPL 2026")),
-            p("narayan-joshi", 17, "Narayan", "Joshi", "Narayan Joshi", "All-rounder", "All-rounder", false, false,
-              A + "narayan-joshi-nobg-DaRa962R.png", null, null, "Right-hand bat", "Right-arm medium",
+            p("narayan-joshi", 17, "Narayan", "Joshi", "Narayan Joshi", "All-rounder", "All-rounder", false, false, "/images/players/narayan-joshi.png", null, null, "Right-hand bat", "Right-arm medium",
               List.of("Nepal", K + " (2025–)", "Pokhara Avengers (NPL 2024)", "Biratnagar Super Kings (2022–23)"), null,
               "Right-handed all-rounder who bowls medium pace. Moved to the Kings ahead of NPL 2025 after a season with Pokhara Avengers.",
               List.of("Selected for Nepal's squad in November 2024", "Retained by the Kings for NPL 2026")),
@@ -180,38 +177,105 @@ public class DataService {
                 new Standing(8, "Lumbini Lions", 7, 1, 6, 0, "-0.498", 2))));
     }
 
+
     @Cacheable("gallery")
     public List<GalleryItem> gallery() {
         return List.of(
-            new GalleryItem(1, "Kings on Stage", L + "9d7cc65b-c0d9-4ab7-bf47-1e40805cf697/gallery-5.png"),
-            new GalleryItem(2, "Running Between the Wickets", L + "55f043d6-dd5c-4918-93f7-71292c678c03/kingdom-action-1.png"),
-            new GalleryItem(3, "The Roar · #25", L + "aa4ad840-9b7f-4dc5-b212-7cde42dc0d65/gallery-9.png"),
-            new GalleryItem(4, "Skipper's Anthem", L + "f4c99a66-dedd-462b-90ae-bcb6408c3910/gallery-6.png"),
-            new GalleryItem(5, "Smooth Play of the Match", L + "6a27b179-41d0-44f4-a729-069eed52f3d9/kingdom-action-2.png"),
-            new GalleryItem(6, "Sky High", L + "39bfef11-7ba6-40c3-97ed-65865d4d170d/gallery-7.png"),
-            new GalleryItem(7, "At the Crease", L + "0614d8fe-ae57-455b-aa7a-ff1630f2601b/gallery-8.png"));
+                new GalleryItem(1, "Kings on Stage",
+                        "/images/gallery/gallery-5.png"),
+
+                new GalleryItem(2, "Running Between the Wickets",
+                        "/images/gallery/kingdom-action-1.png"),
+
+                new GalleryItem(3, "The Roar · #25",
+                        "/images/gallery/gallery-9.png"),
+
+                new GalleryItem(4, "Skipper's Anthem",
+                        "/images/gallery/gallery-6.png"),
+
+                new GalleryItem(5, "Smooth Play of the Match",
+                        "/images/gallery/kingdom-action-2.png"),
+
+                new GalleryItem(6, "Sky High",
+                        "/images/gallery/gallery-7.png"),
+
+                new GalleryItem(7, "At the Crease",
+                        "/images/gallery/gallery-8.png")
+        );
     }
+
+
 
     @Cacheable("sponsors")
     public List<Sponsor> sponsors() {
         return List.of(
-            new Sponsor("Title Sponsor", "Xtreme Energy Drink", L + "0aa6fe1a-d867-4b80-b82d-ccff5a0ee30b/xtreme-energy-drink.png"),
-            new Sponsor("Powered By", "Everest Bank", L + "9e7bd2e3-9989-49d1-b5c3-d92b93d316d2/everest-bank.jpg"),
-            new Sponsor("Official Partners", "Freemans", L + "410beae4-6726-44e0-8397-980d303b44aa/freemans.png"),
-            new Sponsor("Official Partners", "PLO", L + "2eb9a64b-0585-4234-9289-1619389f63c8/plo-lubricants.jpeg"),
-            new Sponsor("Official Partners", "Hyatt Centric", L + "54f2d0d6-0d35-4701-b24d-7ff7a47b770e/hyatt-centric.png"),
-            new Sponsor("Official Partners", "Bajeko Sekuwa", L + "1b827819-8289-46c5-a0f5-9ab1014e2f47/bajeko-sekuwa.jpg"));
+                new Sponsor(
+                        "Title Sponsor",
+                        "Xtreme Energy Drink",
+                        "/images/sponsors/xtreme-energy-drink.png"
+                ),
+
+                new Sponsor(
+                        "Powered By",
+                        "Everest Bank",
+                        "/images/sponsors/everest-bank.jpg"
+                ),
+
+                new Sponsor(
+                        "Official Partners",
+                        "Freemans",
+                        "/images/sponsors/freemans.png"
+                ),
+
+                new Sponsor(
+                        "Official Partners",
+                        "PLO",
+                        "/images/sponsors/plo-lubricants.jpeg"
+                ),
+
+                new Sponsor(
+                        "Official Partners",
+                        "Hyatt Centric",
+                        "/images/sponsors/hyatt-centric.png"
+                ),
+
+                new Sponsor(
+                        "Official Partners",
+                        "Bajeko Sekuwa",
+                        "/images/sponsors/bajeko-sekuwa.jpg"
+                )
+        );
     }
+
+
 
     @Cacheable("products")
     public List<Product> products() {
-        return List.of(new Product("home-jersey-2026", "Home Jersey 2026", "OFFICIAL PLAYER REPLICA",
-            "The 2026 home kit — royal navy with gold trim, mountain-etch sublimation and the crown crest embroidered over the heart. Lightweight, breathable, match-grade.",
-            List.of("Match-grade polyester", "Sublimated crest", "Slim athletic fit", "Machine washable"),
-            List.of("S", "M", "L", "XL", "XXL"),
-            List.of(A + "sandeep-lamichhane-nobg-DL9DhKuu.png", A + "basir-ahmad-nobg-DyRY3aw0.png", A + "lokesh-bam-nobg-CGCWVUyI.png"),
-            "Dolpo Gears · Thamel & Sorhakhutte", "Dolpo", true));
+        return List.of(
+                new Product(
+                        "home-jersey-2026",
+                        "Home Jersey 2026",
+                        "OFFICIAL PLAYER REPLICA",
+                        "The 2026 home kit — royal navy with gold trim, mountain-etch sublimation and the crown crest embroidered over the heart. Lightweight, breathable, match-grade.",
+                        List.of(
+                                "Match-grade polyester",
+                                "Sublimated crest",
+                                "Slim athletic fit",
+                                "Machine washable"
+                        ),
+                        List.of("S", "M", "L", "XL", "XXL"),
+                        List.of(
+                                "/images/players/sandeep-lamichhane.png",
+                                "/images/players/basir-ahmad.png",
+                                "/images/players/lokesh-bam.png"
+                        ),
+                        "Dolpo Gears · Thamel & Sorhakhutte",
+                        "Dolpo",
+                        true
+                )
+        );
     }
+
 
     public Optional<Product> product(String id) {
         return products().stream().filter(p -> p.id().equals(id)).findFirst();
